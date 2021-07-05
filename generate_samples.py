@@ -158,7 +158,7 @@ def top_k_logits(logits, top_k=0, top_p=0.0, filter_value=-float('Inf')):
         logits[indices_to_remove] = filter_value
         #going back to 2D
         logits=logits.view(1, -1).contiguous()
-	
+
     return logits
 
 
@@ -230,10 +230,10 @@ def generate_samples(model, tokenizer, args, device):
                 else:
                     logits, past_key_values = model(tokens[:, context_length - 1 : context_length], position_ids[:, context_length - 1 : context_length], attention_mask[:, :, context_length - 1, :context_length], past_key_values=past_key_values, use_cache=True)
                     logits = logits[:, 0, :]
-		if args.fp16:
-                    past_key_values = [x.half() for x in past_key_values]
-		else:
-		    past_key_values = [x for x in past_key_values]
+            if args.fp16:
+                past_key_values = [x.half() for x in past_key_values]
+            else:
+                past_key_values = [x for x in past_key_values]
                 logits = top_k_logits(logits, top_k=args.top_k, top_p=args.top_p)            
                 log_probs = F.softmax(logits/args.temperature, dim=-1)
                 prev = torch.multinomial(log_probs, num_samples=1)
@@ -248,31 +248,30 @@ def generate_samples(model, tokenizer, args, device):
 
 
                 if mpu.get_model_parallel_rank() == 0 and (counter % 16 == 0 or token_end != -1):
-                   os.system('clear')
-                   print("\nTaken time {:.2f}\n".format(time.time() - start_time), flush=True)
-                   print("\nContext:", raw_text, flush=True)
-                   trim_decode_tokens = decode_tokens[len(raw_text):decode_tokens.find("<eod>")]
-                   print("\nCPM:", trim_decode_tokens, flush=True)
+                    os.system('clear')
+                    print("\nTaken time {:.2f}\n".format(time.time() - start_time), flush=True)
+                    print("\nContext:", raw_text, flush=True)
+                    trim_decode_tokens = decode_tokens[len(raw_text):decode_tokens.find("<eod>")]
+                    print("\nCPM:", trim_decode_tokens, flush=True)
                 if token_end != -1:
-                   #print(token_end)
-                   break
-                
-            if mpu.get_model_parallel_rank() == 0:
-                os.system('clear')
-                print("\nTaken time {:.2f}\n".format(time.time() - start_time), flush=True)
-                print("\nContext:", raw_text, flush=True)
-                output_tokens_list = tokens.view(-1).contiguous()
-                decode_tokens = tokenizer.decode(output_tokens_list.tolist())
-                trim_decode_tokens = decode_tokens[len(raw_text):decode_tokens.find("<eod>")]
-                print("\nCPM:", trim_decode_tokens, flush=True)
-                #print(token_end)
-            raw_text = None
+                    #print(token_end)
+                    break
+                if mpu.get_model_parallel_rank() == 0:
+                    os.system('clear')
+                    print("\nTaken time {:.2f}\n".format(time.time() - start_time), flush=True)
+                    print("\nContext:", raw_text, flush=True)
+                    output_tokens_list = tokens.view(-1).contiguous()
+                    decode_tokens = tokenizer.decode(output_tokens_list.tolist())
+                    trim_decode_tokens = decode_tokens[len(raw_text):decode_tokens.find("<eod>")]
+                    print("\nCPM:", trim_decode_tokens, flush=True)
+                    #print(token_end)
+                raw_text = None
 
-            torch.distributed.barrier(group=mpu.get_model_parallel_group())
-            context_count += 1
+                torch.distributed.barrier(group=mpu.get_model_parallel_group())
+                context_count += 1
 
-            if args.input_text:
-                break
+                if args.input_text:
+                    break
 
 def prepare_tokenizer(args):
 
